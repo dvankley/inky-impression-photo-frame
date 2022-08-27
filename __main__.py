@@ -1,16 +1,52 @@
+import pathlib
 from pprint import pprint
+from os import listdir
 from PIL import Image
 from inky.auto import auto
+# import pyheif
 
-if __name__ == '__main__':
-    print("Running inky photo display")
+PHOTOS_DIRECTORY = '/opt/inky-photos'
 
-    display = auto()
-    color = display.color
-    resolution = display.resolution
 
-    pprint(color)
-    pprint(resolution)
+def display_photo(display, photo_path: pathlib.Path, aspect_ratio: float) -> None:
+    """
+    test_function does blah blah blah.
+
+    :param photo_path: Path to photo file we're processing
+    :param aspect_ratio: Desired aspect ratio, in width/height
+    """
+
+    # read the photo in
+    # if photo_path.suffix.lower() == "heic":
+        # heif_file = pyheif.read(photo_path)
+        # image = Image.frombytes(
+        #     heif_file.mode,
+        #     heif_file.size,
+        #     heif_file.data,
+        #     "raw",
+        #     heif_file.mode,
+        #     heif_file.stride,
+        # )
+    # else:
+    image = Image.open(photo_path)
+
+    # crop to desired aspect ratio
+    thing = 1
+
+    # scale the photo
+
+    # dither
+
+    # display
+    display.set_image(image)
+    display.show()
+
+
+    # color = display.color
+    # resolution = display.resolution
+
+    # pprint(color)
+    # pprint(resolution)
 
     # apiKey = API_KEY_OVERRIDE if API_KEY_OVERRIDE else os.environ.get('GOOGLE_API_KEY')
     #
@@ -53,3 +89,19 @@ if __name__ == '__main__':
     #         writer.writerows(values)
     # # cleanup
     # print(f"Successfully processed {len(sheetConfigs)} sheets")
+
+
+if __name__ == '__main__':
+    print("Running inky photo display")
+
+    # Initialization
+    display = auto()
+    height = display.height
+    width = display.width
+    aspect_ratio = width / height
+
+    photo_files = listdir(PHOTOS_DIRECTORY)
+
+    display_photo(display, pathlib.Path(PHOTOS_DIRECTORY + '/' + photo_files[0]), aspect_ratio)
+
+    # Event loop
