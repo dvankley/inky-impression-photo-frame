@@ -1,94 +1,69 @@
 import pathlib
-from pprint import pprint
+import signal
+import time
+import random
 from os import listdir
+from threading import Event
+
+import RPi.GPIO as GPIO
 from PIL import Image
 from inky.auto import auto
-# import pyheif
 
 PHOTOS_DIRECTORY = '/opt/inky-photos'
 
+PHOTO_CYCLE_PERIOD_SECS = 300
 
-def display_photo(display, photo_path: pathlib.Path, aspect_ratio: float) -> None:
+# Gpio pins for each button (from top to bottom)
+BUTTONS = [5, 6, 16, 24]
+
+# These correspond to buttons A, B, C and D respectively
+LABELS = ['A', 'B', 'C', 'D']
+
+# Set up RPi.GPIO with the "BCM" numbering scheme
+GPIO.setmode(GPIO.BCM)
+
+# Buttons connect to ground when pressed, so we should set them up
+# with a "PULL UP", which weakly pulls the input signal to 3.3V.
+GPIO.setup(BUTTONS, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+
+# exit = Event()
+# buttonA = Event()
+button_pressed = Event()
+
+def display_photo(display, photo_path: pathlib.Path) -> None:
     """
     test_function does blah blah blah.
 
     :param photo_path: Path to photo file we're processing
-    :param aspect_ratio: Desired aspect ratio, in width/height
     """
-
-    # read the photo in
-    # if photo_path.suffix.lower() == "heic":
-        # heif_file = pyheif.read(photo_path)
-        # image = Image.frombytes(
-        #     heif_file.mode,
-        #     heif_file.size,
-        #     heif_file.data,
-        #     "raw",
-        #     heif_file.mode,
-        #     heif_file.stride,
-        # )
-    # else:
+    print("Displaying image")
     image = Image.open(photo_path)
-
-    # crop to desired aspect ratio
-    thing = 1
-
-    # scale the photo
-
-    # dither
-
-    # display
     display.set_image(image)
     display.show()
+    print("Display complete")
 
 
-    # color = display.color
-    # resolution = display.resolution
+def handle_button(pin: int):
+    """
+    "handle_button" will be called every time a button is pressed
+    It receives one argument: the associated input pin.
+    :param pin:
+    :return:
+    """
+    label = LABELS[BUTTONS.index(pin)]
+    button_pressed.set()
+    print("Button press detected on pin: {} label: {}".format(pin, label))
 
-    # pprint(color)
-    # pprint(resolution)
 
-    # apiKey = API_KEY_OVERRIDE if API_KEY_OVERRIDE else os.environ.get('GOOGLE_API_KEY')
-    #
-    # if apiKey is None:
-    #     raise RuntimeError(f"Missing required env var GOOGLE_API_KEY")
-    #
-    # # Build the Google Sheets API interface
-    # sheetConfigs = yaml.load(open('app/config/sheets.yaml', 'r'), Loader=yaml.FullLoader)
-    # apiService = build('sheets', 'v4', developerKey=apiKey)
-    # sheetInterface = apiService.spreadsheets()
-    #
-    # # Iterate over our sheet configurations
-    # for sheetConfig in sheetConfigs:
-    #     sheetId = sheetConfig['sheetId']
-    #     if sheetId is None:
-    #         raise RuntimeError(f"Missing sheetId in sheet config")
-    #
-    #     outputFilename = sheetConfig['outputFilename']
-    #     if outputFilename is None:
-    #         raise RuntimeError(f"Missing outputFilename for sheet config with sheetId {sheetId}")
-    #
-    #     cellRange = sheetConfig['range']
-    #     if cellRange is None:
-    #         raise RuntimeError(f"Missing range for sheet config with sheetId {sheetId}")
-    #
-    #     # Call the Sheets API to get the actual values
-    #     result = sheetInterface.values().get(spreadsheetId=sheetId,
-    #                                          range=cellRange).execute()
-    #     values = result.get('values', [])
-    #
-    #     if not values:
-    #         print(f"No data fetched for sheet {sheetId}")
-    #         continue
-    #
-    #     # Open CSV file for writing
-    #     with open(f"output/{sheetConfig['outputFilename']}", 'w', newline='') as csvFile:
-    #         # Using the Unix dialect for now because it seems the most reasonable. Can switch to Excel if it makes
-    #         #   more sense for whomever is using this output.
-    #         writer = csv.writer(csvFile, dialect='unix')
-    #         writer.writerows(values)
-    # # cleanup
-    # print(f"Successfully processed {len(sheetConfigs)} sheets")
+class GracefulKiller:
+    kill_now = False
+
+    def __init__(self):
+        signal.signal(signal.SIGINT, self.exit_gracefully)
+        signal.signal(signal.SIGTERM, self.exit_gracefully)
+
+    def exit_gracefully(self, *args):
+        self.kill_now = True
 
 
 if __name__ == '__main__':
@@ -100,8 +75,45 @@ if __name__ == '__main__':
     width = display.width
     aspect_ratio = width / height
 
+    # Loop throughout buttons and attach the "handle_button" function to each
+    # We're watching the "FALLING" edge (transition from 3.3V to Ground) and
+    # picking a generous bouncetime of 250ms to smooth out button presses.
+    for pin in BUTTONS:
+        GPIO.add_event_detect(pin, GPIO.FALLING, handle_button, bouncetime=250)
+
     photo_files = listdir(PHOTOS_DIRECTORY)
 
-    display_photo(display, pathlib.Path(PHOTOS_DIRECTORY + '/' + photo_files[0]), aspect_ratio)
-
+    killer = GracefulKiller()
+    last_photo_cycle = 0
     # Event loop
+    while not killer.kill_now:
+        timestamp = int(time.monotonic())
+        if (timestamp - last_photo_cycle) > PHOTO_CYCLE_PERIOD_SECS or button_pressed.is_set():
+            print("Cycling photo display")
+            file = random.choice(photo_files)
+            display_photo(display, pathlib.Path(PHOTOS_DIRECTORY + '/' + file))
+
+            button_pressed.clear()
+            last_photo_cycle = timestamp
+        time.sleep(1)
+
+
+# def main():
+#     while not exit.is_set():
+#         do_my_thing()
+#         exit.wait(60)
+#
+#     print("All done!")
+#     # perform any cleanup here
+#
+# def quit(signo, _frame):
+#     print("Interrupted by %d, shutting down" % signo)
+#     exit.set()
+#
+# if __name__ == '__main__':
+#
+#     import signal
+#     for sig in ('TERM', 'HUP', 'INT'):
+#         signal.signal(getattr(signal, 'SIG'+sig), quit);
+#
+#     main()
