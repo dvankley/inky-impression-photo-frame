@@ -64,9 +64,9 @@ activity_led.on()
 # button_a_led.on()
 # display_image(IMAGE_A)
 
-def display_image(filename):
+def display_jpg(filename):
     # Open the JPEG file
-    j.open_file(filename)
+    j.open_file(filename + ".jpg")
 
     # Decode the JPEG
     j.decode(0, 0, jpegdec.JPEG_SCALE_FULL)
@@ -75,10 +75,19 @@ def display_image(filename):
     display.update()
 
 
+def display_raw(filename):
+    # Open the file
+    open(filename + ".bin", "rb").readinto(display)
+
+    # Display the result
+    display.update()
+
+
 # photo_files = listdir("/sd")
-file_index = random.randrange(0, FILE_COUNT)
-file = "/sd/" + str(file_index) + ".jpg"
-display_image(file)
+file_index = random.randrange(1, FILE_COUNT + 1)
+file = "/sd/" + str(file_index)
+display_raw(file)
+# display_jpg(file)
 
 activity_led.off()
 inky_helper.sleep(SLEEP_MINUTES)
