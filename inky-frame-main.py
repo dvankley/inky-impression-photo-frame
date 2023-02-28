@@ -17,8 +17,12 @@ import jpegdec
 import sdcard
 import uos
 
-SLEEP_MINUTES = 1
-FILE_COUNT = 1
+SLEEP_MINUTES = 2
+FILE_COUNT = 5
+
+# Enable vsys hold so we don't go to sleep
+# This variable and vsys setup are imported from inky_helper
+inky_helper.hold_vsys_en_pin.value(True)
 
 # set up the display
 display = PicoGraphics(display=DISPLAY_INKY_FRAME)
@@ -45,26 +49,14 @@ sd_spi = SPI(0, sck=Pin(18, Pin.OUT), mosi=Pin(19, Pin.OUT), miso=Pin(16, Pin.OU
 sd = sdcard.SDCard(sd_spi, Pin(22))
 uos.mount(sd, "/sd")
 
-# set up and enable vsys hold so we don't go to sleep
-# Don't actually do this because we're using inky_helper for sleeping and it handles this
-# HOLD_VSYS_EN_PIN = 2
-
-# hold_vsys_en_pin = Pin(HOLD_VSYS_EN_PIN, Pin.OUT)
-# hold_vsys_en_pin.value(True)
-
-# Create a new JPEG decoder for our PicoGraphics
-j = jpegdec.JPEG(display)
-
 # setup
 activity_led.on()
 
 
-# update the image on Inky every time it's powered up
-# comment these lines out if running on battery power
-# button_a_led.on()
-# display_image(IMAGE_A)
-
 def display_jpg(filename):
+    # Create a new JPEG decoder for our PicoGraphics
+    j = jpegdec.JPEG(display)
+
     # Open the JPEG file
     j.open_file(filename + ".jpg")
 
@@ -91,4 +83,3 @@ display_raw(file)
 
 activity_led.off()
 inky_helper.sleep(SLEEP_MINUTES)
-# hold_vsys_en_pin.init(Pin.IN)
